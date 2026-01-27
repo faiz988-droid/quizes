@@ -1,0 +1,132 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, buildUrl } from "@shared/routes";
+import { v4 as uuidv4 } from 'uuid';
+import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+
+const DEVICE_ID_KEY = "exam_device_id";
+const TOKEN_KEY = "exam_token";
+
+export function useDeviceIdentity() {
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let stored = localStorage.getItem(DEVICE_ID_KEY);
+    if (!stored) {
+      stored = uuidv4();
+      localStorage.setItem(DEVICE_ID_KEY, stored);
+    }
+    setDeviceId(stored);
+  }, []);
+
+  return deviceId;
+}
+
+export function useIdentify() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (data: { name: string; deviceId: string }) => {
+      const res = await fetch(api.identify.path, {
+        method: api.identify.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to identify");
+      }
+      
+      return api.identify.responses[200].parse(await res.json());
+    },
+    onSuccess: (data) => {
+      localStorage.setItem(TOKEN_KEY, data.token);
+      queryClient.invalidateQueries({ queryKey: [api.getDailyQuestion.path] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Identification Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+}
+
+export function useDailyQuestion() {
+  return useQuery({
+    queryKey: [api.getDailyQuestion.path],
+    queryFn: async () => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      // Even if no token, we might want to check (API handles 403)
+      const res = await fetch(api.getDailyQuestion.path, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+      });
+      
+      if (res.status === 403) return null; // Not identified
+      if (!res.ok) throw new Error("Failed to fetch question");
+      
+      const data = await res.json();
+      return api.getDailyQuestion.responses[200].parse(data);
+    },
+    retry: false,
+  });
+}
+
+export function useSubmitAnswer() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (data: { questionId: number; answerIndex: number | null; deviceId: string; reason?: string }) => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      const res = await fetch(api.submitAnswer.path, {
+        method: api.submitAnswer.method,
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Submission failed");
+      }
+
+      return api.submitAnswer.responses[200].parse(await res.json());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.getDailyQuestion.path] });
+      toast({
+        title: "Submitted!",
+        description: "Your answer has been recorded.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+}
+
+export function useHeartbeat(deviceId: string | null) {
+  useEffect(() => {
+    if (!deviceId) return;
+
+    const interval = setInterval(() => {
+      fetch(api.heartbeat.path, {
+        method: api.heartbeat.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId }),
+      }).catch(console.error);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [deviceId]);
+}
