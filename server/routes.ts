@@ -250,9 +250,20 @@ export async function registerRoutes(
   });
 
   app.post(api.adminQuestions.create.path, async (req, res) => {
-    const input = api.adminQuestions.create.input.parse(req.body);
-    const q = await storage.createQuestion(input);
-    res.status(201).json(q);
+    try {
+      const input = api.adminQuestions.create.input.parse(req.body);
+      // Ensure we have exactly 4 options if not already validated
+      if (!Array.isArray(input.options) || input.options.length !== 4) {
+        return res.status(400).json({ message: "Exactly 4 options are required." });
+      }
+      const q = await storage.createQuestion(input);
+      res.status(201).json(q);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal Server Error" });
+    }
   });
   
   app.delete(api.adminQuestions.delete.path, async (req, res) => {
