@@ -1,0 +1,384 @@
+OBJECTIVE
+
+Build a mobile-first daily quiz / MCQ exam web application where:
+
+No user can attempt a quiz without identification
+
+Users never see ranks, scores, or leaderboards
+
+Only the admin panel can view daily and competition results
+
+Scoring follows a strict, deterministic marking scheme
+
+Ranking is computed only for verified participants
+
+Strong mobile lockdown behavior is enforced
+
+The system must be suitable for serious competitive quizzes and mock exams, ensuring fair ranking, auditability, integrity, and anti-cheating enforcement.
+
+1. USER IDENTIFICATION (MANDATORY — NO EXCEPTIONS)
+Entry Requirement
+
+Before accessing any quiz:
+
+User must either:
+
+Enter their participant name (first time only), OR
+
+Log in using authentication (username/password or OTP)
+
+No question, timer, or fullscreen mode may start until identification is complete
+
+First-Time User (Name-Based Flow)
+
+Rules:
+
+User enters full name
+
+Validation:
+
+Minimum 3 characters
+
+Alphanumeric + spaces only
+
+Once accepted:
+
+Name is permanently bound to:
+
+Device ID
+
+Browser fingerprint
+
+Same device must reuse the same name for all future quizzes
+
+User cannot change name
+
+Only admin can reset or reassign identity
+
+Backend Enforcement
+
+Each submission must include:
+
+Participant Name OR User ID
+
+Device ID
+
+Question ID
+
+Quiz Date
+
+Submission Timestamp (millisecond precision)
+
+If identity is missing or invalid:
+
+Submission must be rejected
+
+User must be blocked from quiz access
+
+2. USER INTERFACE RULES (STRICT)
+User Page
+
+REMOVE:
+
+Rank button
+
+Leaderboard button
+
+Score display
+
+Any performance indicators
+
+User can only:
+
+Answer the question
+
+See confirmation message:
+“Your answer has been recorded successfully.”
+
+Users must NEVER see:
+
+Their score
+
+Rank
+
+Other participants
+
+Daily or monthly results
+
+3. ADMIN PANEL (PASSWORD PROTECTED)
+
+Admin capabilities:
+
+Add / manage daily questions (1 per day)
+
+View daily results
+
+View results for any selected date range
+
+View full competition leaderboard
+
+Declare competition winner
+
+Lock results after competition ends
+
+Export results (CSV / XLSX)
+
+Reset participant identity or device binding
+
+Ban or disqualify participants
+
+Change admin password
+
+4. DATA INPUTS (PER QUESTION — REQUIRED)
+
+Each submission must store:
+
+Participant Name
+
+Answer Status:
+
+Correct
+
+Wrong
+
+Unattempted
+
+Answer Order
+
+Integer starting from 1
+
+Global per question
+
+Wrong Attempt Order
+
+Integer starting from 1
+
+Reset per participant per question
+
+Previous Question Score
+
+Numeric
+
+Used for Extra Marks eligibility
+
+All counters reset per question.
+
+5. MARKING SCHEME (STRICT & DETERMINISTIC)
+5.1 Base Marks (Correct Answers)
+Base Marks = 510 − (Answer Order × 10)
+If Base Marks < 0 → Base Marks = 0
+
+5.2 Deduction Marks (Wrong Answers)
+Deduction Marks = −5 × (Wrong Attempt Order − 1)
+
+
+Examples:
+
+1st wrong attempt → 0
+
+2nd → −5
+
+3rd → −10
+
+5.3 Unattempted Rule
+Score = 0
+
+5.4 Extra Marks Eligibility
+
+Extra marks apply to the next question only if:
+
+Previous Question Score ≤ 0
+
+
+Rules:
+
+Eligibility does NOT stack
+
+Cannot be used in consecutive questions
+
+Resets after use
+
+5.5 Extra Marks Bonus Percentage
+Bonus Percentage = MAX(0, 0.7 − (Answer Order × 0.1))
+
+
+Examples:
+
+Order 1 → 60%
+
+Order 2 → 50%
+
+Order 3 → 40%
+
+Order ≥7 → 0%
+
+5.6 Extra Marks Calculation
+
+If eligible AND answer is correct:
+
+Score = Base Marks × (1 + Bonus Percentage)
+
+
+Otherwise:
+
+Score = Base Marks
+
+
+After application:
+
+Extra Marks Eligible = FALSE
+
+5.7 Final Score Logic
+IF Correct → Score = Extra Score
+IF Wrong → Score = Deduction Marks
+IF Unattempted → Score = 0
+
+5.8 Score Floor Protection
+If Score < −50 → Score = −50
+
+
+Applied per question.
+
+5.9 Total Score
+Total Score = SUM(All Question Scores)
+
+
+Computed server-side only.
+
+6. RANKING LOGIC (ADMIN ONLY)
+
+Participants are ranked by:
+
+Total Score (Descending)
+
+Number of Correct Answers
+
+Fastest Average Answer Order
+
+Rankings:
+
+Never shown to users
+
+Visible only in admin panel and exports
+
+7. EXCEL / EXPORT FORMAT (MANDATORY)
+
+Exports must include:
+
+Question No
+
+Participant
+
+Answer Status
+
+Answer Order
+
+Wrong Attempt Order
+
+Base Marks
+
+Bonus %
+
+Extra Applied (TRUE / FALSE)
+
+Final Score
+
+Total Score (Running)
+
+8. MOBILE LOCKDOWN & ANTI-CHEAT (MANDATORY)
+Exam Rules
+
+Fullscreen only
+
+App/tab switch → auto submit
+
+Minimize → auto submit
+
+Lock screen / notification pull → auto submit
+
+Back button → auto submit
+
+Exit fullscreen → auto submit
+
+Refresh → auto submit
+
+Network loss → auto submit
+
+Heartbeat loss → auto submit
+
+9. MANDATORY FRONTEND SCRIPTS
+Fullscreen
+document.documentElement.requestFullscreen();
+
+App / Tab Switch
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) submitExam("App or tab switch");
+});
+window.addEventListener("blur", () => submitExam("Focus lost"));
+
+Exit Fullscreen
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement) submitExam("Exited fullscreen");
+});
+
+Back Button
+history.pushState(null, null, location.href);
+window.onpopstate = () => submitExam("Back button pressed");
+
+Resize / Minimize
+let baseHeight = window.innerHeight;
+window.addEventListener("resize", () => {
+  if (window.innerHeight < baseHeight * 0.75) submitExam("App minimized");
+});
+
+10. AUTO-SUBMIT FUNCTION
+function submitExam(reason) {
+  fetch("/submit", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ reason, timestamp: Date.now() })
+  }).finally(() => location.replace("/submitted"));
+}
+
+11. HEARTBEAT SYSTEM
+
+Frontend:
+
+setInterval(() => fetch("/heartbeat", {method:"POST"}), 4000);
+
+
+Backend:
+
+If heartbeat missing >10s → auto submit
+
+12. SYSTEM ASSUMPTIONS (NON-NEGOTIABLE)
+
+One identity per device
+
+One submission per question
+
+Answer order is global
+
+Wrong attempt order is per participant
+
+Extra marks apply once only
+
+No manual score overrides
+
+All scoring server-side
+
+Users never see results
+
+EXPECTED OUTCOME
+
+A competition-grade mobile quiz & exam platform where:
+
+Every participant is uniquely identified
+
+Scoring is deterministic and auditable
+
+Rankings are fair and admin-controlled
+
+Anti-cheating is enforced aggressively
+
+Users cannot influence or preview results
