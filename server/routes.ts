@@ -261,8 +261,15 @@ export async function registerRoutes(
   });
 
   app.get(api.adminResults.path, async (req, res) => {
-     const leaderboard = await storage.getLeaderboard(req.query.date as string);
+     const type = (req.query.type as 'daily' | 'monthly') || 'daily';
+     const date = req.query.date as string;
+     const leaderboard = await storage.getLeaderboard(type, date);
      res.json(leaderboard);
+  });
+
+  app.post(api.adminReset.path, async (req, res) => {
+    const newResetId = await storage.performReset();
+    res.json({ message: "Dashboard reset successfully", newResetId });
   });
 
   app.get(api.adminExport.path, async (req, res) => {

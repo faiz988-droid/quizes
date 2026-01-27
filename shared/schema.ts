@@ -9,8 +9,8 @@ import { z } from "zod";
 // Participants: Identified by name and device fingerprint
 export const participants = pgTable("participants", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(), // Unique constraint enforced via logic/index if needed, or composite with deviceId
-  deviceId: text("device_id").notNull(), // Bound to the browser/device
+  name: text("name").notNull(),
+  deviceId: text("device_id").notNull(),
   isBanned: boolean("is_banned").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastActiveAt: timestamp("last_active_at").defaultNow(),
@@ -20,46 +20,47 @@ export const participants = pgTable("participants", {
 export const admins = pgTable("admins", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
-  password: text("password").notNull(), // Hashed
+  password: text("password").notNull(),
 });
 
 // Questions: Daily questions
 export const questions = pgTable("questions", {
   id: serial("id").primaryKey(),
   content: text("content").notNull(),
-  options: jsonb("options").notNull(), // Array of strings or objects {id, text}
+  options: jsonb("options").notNull(),
   correctAnswerIndex: integer("correct_answer_index").notNull(),
-  quizDate: text("quiz_date").notNull(), // YYYY-MM-DD format to easily query "today's" question
-  order: integer("order").default(1).notNull(), // Question order for the day
+  quizDate: text("quiz_date").notNull(),
+  order: integer("order").default(1).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  resetId: integer("reset_id").default(0).notNull(),
 });
 
-// Submissions: The core data for scoring
+// Submissions
 export const submissions = pgTable("submissions", {
   id: serial("id").primaryKey(),
   participantId: integer("participant_id").references(() => participants.id).notNull(),
   questionId: integer("question_id").references(() => questions.id).notNull(),
-  
-  // Submission Details
-  answerIndex: integer("answer_index"), // Null if unattempted or auto-submitted without answer
-  status: text("status").notNull(), // 'CORRECT', 'WRONG', 'UNATTEMPTED', 'REJECTED'
-  
-  // Timing & Ordering
-  answerOrder: integer("answer_order").notNull(), // Global order for this question (1st to answer, 2nd, etc.)
-  wrongAttemptOrder: integer("wrong_attempt_order").default(0).notNull(), // Per participant counter
+  answerIndex: integer("answer_index"),
+  status: text("status").notNull(),
+  answerOrder: integer("answer_order").notNull(),
+  wrongAttemptOrder: integer("wrong_attempt_order").default(0).notNull(),
   submissionTimestamp: timestamp("submission_timestamp").defaultNow().notNull(),
-  
-  // Scoring Components (Stored for audit)
   baseMarks: decimal("base_marks").notNull(),
   deductionMarks: decimal("deduction_marks").notNull(),
   bonusPercentage: decimal("bonus_percentage").notNull(),
   extraApplied: boolean("extra_applied").default(false).notNull(),
   finalScore: decimal("final_score").notNull(),
-  
-  // Security
   deviceId: text("device_id").notNull(),
   isAutoSubmitted: boolean("is_auto_submitted").default(false),
   autoSubmitReason: text("auto_submit_reason"),
+  resetId: integer("reset_id").default(0).notNull(),
+});
+
+// App Settings (for tracking global reset state)
+export const settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
+  currentResetId: integer("current_reset_id").default(0).notNull(),
+  lastResetAt: timestamp("last_reset_at").defaultNow(),
 });
 
 // === RELATIONS ===
@@ -76,56 +77,36 @@ export const submissionsRelations = relations(submissions, ({ one }) => ({
 
 // === BASE SCHEMAS ===
 export const insertParticipantSchema = createInsertSchema(participants).omit({ id: true, createdAt: true, lastActiveAt: true, isBanned: true });
-export const insertQuestionSchema = createInsertSchema(questions).omit({ id: true });
+export const insertQuestionSchema = createInsertSchema(questions).omit({ id: true, resetId: true });
 export const insertAdminSchema = createInsertSchema(admins).omit({ id: true });
 
 // === EXPLICIT API CONTRACT TYPES ===
-
-// Participants
 export type Participant = typeof participants.$inferSelect;
 export type InsertParticipant = z.infer<typeof insertParticipantSchema>;
-
-// Questions
 export type Question = typeof questions.$inferSelect;
 export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
-
-// Submissions
 export type Submission = typeof submissions.$inferSelect;
-
-// Admin
 export type Admin = typeof admins.$inferSelect;
+export type Setting = typeof settings.$inferSelect;
 
-// Request/Response Types
-
-// Auth / Identity
 export const identifySchema = z.object({
   name: z.string().min(3).regex(/^[a-zA-Z0-9 ]+$/),
   deviceId: z.string().min(10),
 });
 export type IdentifyRequest = z.infer<typeof identifySchema>;
 
-// Submit Answer
 export const submitAnswerSchema = z.object({
   questionId: z.number(),
-  answerIndex: z.number().nullable(), // Null if unattempted/timeout
+  answerIndex: z.number().nullable(),
   deviceId: z.string(),
-  reason: z.string().optional(), // For auto-submit
+  reason: z.string().optional(),
 });
 export type SubmitAnswerRequest = z.infer<typeof submitAnswerSchema>;
 
-// Heartbeat
 export const heartbeatSchema = z.object({
   deviceId: z.string(),
 });
 
-// Admin Dashboard Stats
-export interface DashboardStats {
-  totalParticipants: number;
-  totalSubmissionsToday: number;
-  activeQuestions: number;
-}
-
-// Leaderboard Entry
 export interface LeaderboardEntry {
   rank: number;
   participantName: string;

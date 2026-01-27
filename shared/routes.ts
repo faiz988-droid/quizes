@@ -139,7 +139,10 @@ export const api = {
   adminResults: {
     method: 'GET' as const,
     path: '/api/admin/results',
-    input: z.object({ date: z.string().optional() }).optional(),
+    input: z.object({ 
+      date: z.string().optional(),
+      type: z.enum(['daily', 'monthly']).default('daily') 
+    }).optional(),
     responses: {
       200: z.array(z.object({
         rank: z.number(),
@@ -148,6 +151,15 @@ export const api = {
         correctCount: z.number(),
         avgAnswerOrder: z.number(),
       })),
+      401: errorSchemas.unauthorized,
+    },
+  },
+
+  adminReset: {
+    method: 'POST' as const,
+    path: '/api/admin/reset',
+    responses: {
+      200: z.object({ message: z.string(), newResetId: z.number() }),
       401: errorSchemas.unauthorized,
     },
   },
