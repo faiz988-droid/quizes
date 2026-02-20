@@ -266,8 +266,22 @@ export async function registerRoutes(
     }
   });
   
+  app.patch(api.adminQuestions.update.path, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const input = api.adminQuestions.update.input.parse(req.body);
+      const q = await storage.updateQuestion(id, input);
+      res.json(q);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
   app.delete(api.adminQuestions.delete.path, async (req, res) => {
-     await storage.deleteQuestion(parseInt(req.params.id));
+     await storage.deleteQuestion(parseInt(req.params.id as string));
      res.status(204).send();
   });
 
@@ -328,7 +342,8 @@ export async function registerRoutes(
     await db.insert(admins).values({ username: "admin", password: "password123" });
   }
 
-  // Seed a daily question for testing
+  // Seed a daily question for testing - REMOVED DEFAULT SEEDING
+  /*
   const today = getTodayDate();
   const dailyQ = await storage.getDailyQuestion(today);
   if (!dailyQ) {
@@ -341,6 +356,7 @@ export async function registerRoutes(
       isActive: true
     });
   }
+  */
 
   return httpServer;
 }

@@ -212,7 +212,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllSubmissions(date?: string): Promise<any[]> {
     const resetId = await this.getCurrentResetId();
-    const query = db.select({
+    let query = db.select({
       submissionId: submissions.id,
       questionId: submissions.questionId,
       questionContent: questions.content,
@@ -229,10 +229,11 @@ export class DatabaseStorage implements IStorage {
     .from(submissions)
     .innerJoin(participants, eq(submissions.participantId, participants.id))
     .innerJoin(questions, eq(submissions.questionId, questions.id))
-    .where(eq(submissions.resetId, resetId));
+    .where(eq(submissions.resetId, resetId))
+    .$dynamic();
 
     if (date) {
-      query.where(eq(questions.quizDate, date));
+      query = query.where(eq(questions.quizDate, date));
     }
     
     return await query;

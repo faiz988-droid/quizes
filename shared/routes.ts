@@ -118,7 +118,7 @@ export const api = {
       },
     },
     update: {
-      method: 'PUT' as const,
+      method: 'PATCH' as const,
       path: '/api/admin/questions/:id',
       input: insertQuestionSchema.partial(),
       responses: {
