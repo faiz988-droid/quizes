@@ -150,8 +150,9 @@ export async function registerRoutes(
     // 2. Wrong Attempt Order (always 1 per submission in single-attempt model)
     const wrongAttemptOrder = 1;
 
-    // 3. Base Marks: 510 − (answerOrder × 10), floored at 0
-    let baseMarks = Math.max(0, 510 - answerOrder * 10);
+    // 3. Base Marks: 500 - ((answerOrder - 1) * 10), floored at 0
+    // Formula: 1st -> 500, 2nd -> 490, 3rd -> 480
+    let baseMarks = Math.max(0, 500 - (answerOrder - 1) * 10);
 
     // 4. Determine status and deduction
     let status = "UNATTEMPTED";
@@ -163,7 +164,9 @@ export async function registerRoutes(
       status = "CORRECT";
     } else {
       status = "WRONG";
-      deductionMarks = -5 * (wrongAttemptOrder - 1); // 0 on first attempt
+      // Formula: 1st -> 0, 2nd -> -5, 3rd -> -10
+      // deductionMarks = -5 * (wrongAttemptOrder - 1)
+      deductionMarks = -5 * (wrongAttemptOrder - 1);
     }
 
     // 5. Extra marks eligibility: previous question score ≤ 0
