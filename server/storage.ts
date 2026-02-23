@@ -14,7 +14,8 @@ import {
   type LeaderboardEntry,
   type Setting,
 } from "@shared/schema";
-import { eq, and, sql, desc, asc } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
+import { format } from "date-fns";
 
 export interface IStorage {
   // Settings
@@ -134,6 +135,11 @@ export class DatabaseStorage implements IStorage {
 
   async getDailyQuestion(date: string): Promise<Question | undefined> {
     const resetId = await this.getCurrentResetId();
+
+    // Format current time as "HH:mm" — zero-padded 24h strings compare
+    // correctly with plain string comparison e.g. "09:00" < "14:30"
+    const currentTime = format(new Date(), "HH:mm");
+
     const [q] = await db
       .select()
       .from(questions)
@@ -142,10 +148,16 @@ export class DatabaseStorage implements IStorage {
           eq(questions.quizDate, date),
           eq(questions.isActive, true),
           eq(questions.resetId, resetId),
+          // NULL scheduledTime = always available.
+          // Otherwise only serve once current time >= scheduled time.
+          sql`(${questions.scheduledTime} IS NULL OR ${questions.scheduledTime} <= ${currentTime})`,
         ),
       )
-      .orderBy(desc(questions.order))
+      // Among all eligible slots, serve the one whose scheduled time is latest
+      // (most recently opened). Falls back to order if times are equal.
+      .orderBy(desc(questions.scheduledTime), desc(questions.order))
       .limit(1);
+
     return q;
   }
 
@@ -164,7 +176,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllQuestions(): Promise<Question[]> {
-    return await db.select().from(questions).orderBy(desc(questions.quizDate));
+    return await db
+      .select()
+      .from(questions)
+      .orderBy(desc(questions.quizDate), desc(questions.scheduledTime));
   }
 
   async updateQuestion(
@@ -183,10 +198,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(questions).where(eq(questions.id, id));
   }
 
-  // Deletes all submissions tied to a question.
-  // MUST be called before deleteQuestion — submissions.questionId has a FK
-  // reference to questions.id with no ON DELETE CASCADE, so Postgres will
-  // reject the question delete if child rows still exist.
+  // Must be called BEFORE deleteQuestion — FK constraint blocks deletion otherwise
   async deleteSubmissionsByQuestion(questionId: number): Promise<void> {
     await db.delete(submissions).where(eq(submissions.questionId, questionId));
   }
@@ -195,7 +207,7 @@ export class DatabaseStorage implements IStorage {
 
   async createSubmission(submission: Partial<Submission>): Promise<Submission> {
     const resetId = await this.getCurrentResetId();
-    // @ts-ignore — partial spread is intentional; DB defaults fill the rest
+    // @ts-ignore — partial spread intentional; DB defaults fill remaining cols
     const [s] = await db
       .insert(submissions)
       .values({ ...submission, resetId })
@@ -219,8 +231,6 @@ export class DatabaseStorage implements IStorage {
     return s;
   }
 
-  // Returns how many submissions already exist for this question + 1,
-  // giving the next person their answer-order position (1st, 2nd, etc.)
   async getGlobalAnswerOrder(questionId: number): Promise<number> {
     const [result] = await db
       .select({ count: sql<number>`count(*)` })
@@ -230,19 +240,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getParticipantWrongAttemptCount(
-    participantId: number,
-    questionId: number,
+    _participantId: number,
+    _questionId: number,
   ): Promise<number> {
-    // Single-attempt model — always 1
-    return 1;
+    return 1; // single-attempt model
   }
 
-  // Returns the participant's score on their most recent previous submission.
-  // Used to decide if the extra-bonus is applicable (prev score ≤ 0).
-  // Returns 100 (positive sentinel) when there are no prior submissions.
   async getPreviousQuestionScore(
     participantId: number,
-    currentQuestionId: number,
+    _currentQuestionId: number,
   ): Promise<number> {
     const [prev] = await db
       .select()
@@ -251,7 +257,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(submissions.submissionTimestamp))
       .limit(1);
 
-    if (!prev) return 100;
+    if (!prev) return 100; // positive sentinel → eligible for bonus
     return Number(prev.finalScore);
   }
 
@@ -270,7 +276,6 @@ export class DatabaseStorage implements IStorage {
     date?: string,
   ): Promise<LeaderboardEntry[]> {
     const resetId = await this.getCurrentResetId();
-
     const conditions: any[] = [eq(submissions.resetId, resetId)];
 
     if (type === "daily" && date) {
@@ -291,7 +296,6 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .groupBy(submissions.participantId, participants.name);
 
-    // Sort: highest score → most correct → fastest (lowest avg answer order)
     rows.sort((a, b) => {
       if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
       if (b.correctCount !== a.correctCount)

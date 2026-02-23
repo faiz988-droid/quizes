@@ -13,17 +13,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-  DialogTrigger, DialogFooter, DialogDescription,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Loader2, Plus, Trash2, Download, LogOut,
-  Users, CheckCircle, HelpCircle, RefreshCcw, AlertTriangle,
+  Loader2,
+  Plus,
+  Trash2,
+  Download,
+  LogOut,
+  Users,
+  CheckCircle,
+  HelpCircle,
+  RefreshCcw,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
@@ -31,11 +50,21 @@ import { format } from "date-fns";
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
-function StatCard({ title, value, icon: Icon }: { title: string; value: string | number; icon: any }) {
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+}: {
+  title: string;
+  value: string | number;
+  icon: any;
+}) {
   return (
     <Card className="border-border/60 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          {title}
+        </CardTitle>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
@@ -55,10 +84,21 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    mutate({ username: user, password: pass }, {
-      onSuccess: () => { localStorage.setItem("admin_auth", "true"); onLogin(); },
-      onError: () => toast({ title: "Login Failed", description: "Invalid credentials", variant: "destructive" }),
-    });
+    mutate(
+      { username: user, password: pass },
+      {
+        onSuccess: () => {
+          localStorage.setItem("admin_auth", "true");
+          onLogin();
+        },
+        onError: () =>
+          toast({
+            title: "Login Failed",
+            description: "Invalid credentials",
+            variant: "destructive",
+          }),
+      },
+    );
   };
 
   return (
@@ -72,7 +112,11 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
           </div>
           <div className="space-y-2">
             <Label>Password</Label>
-            <Input type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
+            <Input
+              type="password"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+            />
           </div>
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending ? <Loader2 className="animate-spin" /> : "Login"}
@@ -83,19 +127,60 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
   );
 }
 
+// ─── Schedule Badge ───────────────────────────────────────────────────────────
+
+function ScheduleBadge({
+  quizDate,
+  scheduledTime,
+}: {
+  quizDate: string;
+  scheduledTime?: string | null;
+}) {
+  if (!scheduledTime) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+        <Clock className="w-3 h-3" /> Immediate
+      </span>
+    );
+  }
+
+  const scheduledAt = new Date(`${quizDate}T${scheduledTime}`);
+  const isPending = scheduledAt > new Date();
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
+        isPending
+          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+          : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+      }`}
+    >
+      <Clock className="w-3 h-3" />
+      {scheduledTime}
+      {isPending && " ⏳"}
+    </span>
+  );
+}
+
 // ─── Create Question Dialog ───────────────────────────────────────────────────
 
 function CreateQuestionDialog() {
   const { mutate, isPending } = useCreateQuestion();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const { register, handleSubmit, reset, formState: { errors } } = useForm({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
     defaultValues: {
       content: "",
       options: "",
       correctAnswerIndex: "0",
       order: "1",
       quizDate: format(new Date(), "yyyy-MM-dd"),
+      scheduledTime: format(new Date(), "HH:mm"), // default to current time
     },
   });
 
@@ -106,77 +191,163 @@ function CreateQuestionDialog() {
       .filter(Boolean);
 
     if (parsedOptions.length !== 4) {
-      toast({ title: "Validation Error", description: "Enter exactly 4 options, one per line.", variant: "destructive" });
+      toast({
+        title: "Validation Error",
+        description: "Enter exactly 4 options, one per line.",
+        variant: "destructive",
+      });
       return;
     }
 
     const correctIndex = parseInt(data.correctAnswerIndex);
     if (isNaN(correctIndex) || correctIndex < 0 || correctIndex > 3) {
-      toast({ title: "Validation Error", description: "Correct index must be 0–3.", variant: "destructive" });
+      toast({
+        title: "Validation Error",
+        description: "Correct index must be 0–3.",
+        variant: "destructive",
+      });
       return;
     }
 
-    mutate({
-      content: data.content.trim(),
-      options: parsedOptions,
-      correctAnswerIndex: correctIndex,
-      order: parseInt(data.order) || 1,
-      quizDate: data.quizDate,
-      isActive: true,
-    }, {
-      onSuccess: () => {
-        toast({ title: "Success", description: `Question created for ${data.quizDate}` });
-        setOpen(false);
-        reset();
+    mutate(
+      {
+        content: data.content.trim(),
+        options: parsedOptions,
+        correctAnswerIndex: correctIndex,
+        order: parseInt(data.order) || 1,
+        quizDate: data.quizDate,
+        scheduledTime: data.scheduledTime || null,
+        isActive: true,
       },
-      onError: (err: any) => {
-        toast({ title: "Error", description: err?.message || "Failed to create question.", variant: "destructive" });
+      {
+        onSuccess: () => {
+          toast({
+            title: "Question Scheduled",
+            description: `Active on ${data.quizDate} at ${data.scheduledTime}`,
+          });
+          setOpen(false);
+          reset();
+        },
+        onError: (err: any) => {
+          toast({
+            title: "Error",
+            description: err?.message || "Failed to create question.",
+            variant: "destructive",
+          });
+        },
       },
-    });
+    );
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button><Plus className="w-4 h-4 mr-2" /> Add Question</Button>
+        <Button>
+          <Plus className="w-4 h-4 mr-2" /> Add Question
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader><DialogTitle>Add Daily Question</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Schedule a Question</DialogTitle>
+          <DialogDescription>
+            The question will become visible to participants only on the chosen
+            date and after the scheduled time.
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="space-y-2">
-            <Label>Quiz Date</Label>
-            <Input type="date" {...register("quizDate", { required: true })} />
-            <p className="text-xs text-muted-foreground">Participants see this question on the selected date.</p>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          {/* Date + Time side by side */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Quiz Date</Label>
+              <Input
+                type="date"
+                {...register("quizDate", { required: true })}
+              />
+              {errors.quizDate && (
+                <p className="text-xs text-destructive">Required</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-muted-foreground" />{" "}
+                Scheduled Time
+              </Label>
+              <Input
+                type="time"
+                {...register("scheduledTime", { required: true })}
+              />
+              {errors.scheduledTime && (
+                <p className="text-xs text-destructive">Required</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                24h · server local time
+              </p>
+            </div>
           </div>
 
+          {/* Question Content */}
           <div className="space-y-2">
             <Label>Question Content</Label>
-            <Textarea {...register("content", { required: true })} placeholder="What is the capital of France?" rows={3} />
-            {errors.content && <p className="text-xs text-destructive">Content is required</p>}
+            <Textarea
+              {...register("content", { required: true })}
+              placeholder="What is the capital of France?"
+              rows={3}
+            />
+            {errors.content && (
+              <p className="text-xs text-destructive">Content is required</p>
+            )}
           </div>
 
+          {/* Options */}
           <div className="space-y-2">
-            <Label>Options <span className="text-muted-foreground text-xs">(exactly 4, one per line)</span></Label>
-            <Textarea {...register("options", { required: true })} placeholder={"London\nBerlin\nParis\nMadrid"} rows={4} />
-            {errors.options && <p className="text-xs text-destructive">Options are required</p>}
+            <Label>
+              Options{" "}
+              <span className="text-muted-foreground text-xs">
+                (exactly 4, one per line)
+              </span>
+            </Label>
+            <Textarea
+              {...register("options", { required: true })}
+              placeholder={"London\nBerlin\nParis\nMadrid"}
+              rows={4}
+            />
+            {errors.options && (
+              <p className="text-xs text-destructive">Options are required</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Correct Index <span className="text-muted-foreground text-xs">(0–3)</span></Label>
-              <Input type="number" {...register("correctAnswerIndex")} min={0} max={3} />
+              <Label>
+                Correct Index{" "}
+                <span className="text-muted-foreground text-xs">(0–3)</span>
+              </Label>
+              <Input
+                type="number"
+                {...register("correctAnswerIndex")}
+                min={0}
+                max={3}
+              />
               <p className="text-xs text-muted-foreground">0 = first option</p>
             </div>
             <div className="space-y-2">
               <Label>Day Order</Label>
               <Input type="number" {...register("order")} min={1} />
-              <p className="text-xs text-muted-foreground">Question sequence #</p>
+              <p className="text-xs text-muted-foreground">
+                Question sequence #
+              </p>
             </div>
           </div>
 
           <Button type="submit" className="w-full" disabled={isPending}>
-            {isPending ? <><Loader2 className="animate-spin mr-2 w-4 h-4" /> Creating...</> : "Create & Activate Question"}
+            {isPending ? (
+              <>
+                <Loader2 className="animate-spin mr-2 w-4 h-4" /> Scheduling...
+              </>
+            ) : (
+              "Schedule Question"
+            )}
           </Button>
         </form>
       </DialogContent>
@@ -184,24 +355,33 @@ function CreateQuestionDialog() {
   );
 }
 
-// ─── Delete Question Button (with confirm dialog) ─────────────────────────────
+// ─── Delete Question Button ───────────────────────────────────────────────────
 
-function DeleteQuestionButton({ id, content }: { id: number; content: string }) {
+function DeleteQuestionButton({
+  id,
+  content,
+}: {
+  id: number;
+  content: string;
+}) {
   const [open, setOpen] = useState(false);
   const { mutate: deleteQuestion, isPending } = useDeleteQuestion();
   const { toast } = useToast();
 
   const handleDelete = () => {
-    // Pass id as a plain number — hook must call DELETE /api/admin/questions/:id
     deleteQuestion(id, {
       onSuccess: () => {
-        toast({ title: "Deleted", description: "Question removed successfully." });
+        toast({
+          title: "Deleted",
+          description: "Question removed successfully.",
+        });
         setOpen(false);
       },
       onError: (err: any) => {
         toast({
           title: "Delete Failed",
-          description: err?.message || "Could not delete the question. Please try again.",
+          description:
+            err?.message || "Could not delete the question. Please try again.",
           variant: "destructive",
         });
         setOpen(false);
@@ -219,24 +399,37 @@ function DeleteQuestionButton({ id, content }: { id: number; content: string }) 
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-destructive" />
-            Delete Question
+            <AlertTriangle className="w-5 h-5 text-destructive" /> Delete
+            Question
           </DialogTitle>
           <DialogDescription>
-            This action cannot be undone. The question and all related submissions will be removed.
+            This also deletes all submissions for this question. Cannot be
+            undone.
           </DialogDescription>
         </DialogHeader>
         <div className="bg-muted/50 border border-border/50 rounded-lg p-3 text-sm text-muted-foreground italic">
           "{content.length > 90 ? content.slice(0, 90) + "…" : content}"
         </div>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
+          <Button
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={isPending}
+          >
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={isPending}>
-            {isPending
-              ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Deleting...</>
-              : "Yes, Delete"}
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={isPending}
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-2" /> Deleting...
+              </>
+            ) : (
+              "Yes, Delete"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -244,7 +437,7 @@ function DeleteQuestionButton({ id, content }: { id: number; content: string }) 
   );
 }
 
-// ─── Clear Leaderboard Button (with confirm dialog) ───────────────────────────
+// ─── Clear Leaderboard Button ─────────────────────────────────────────────────
 
 function ClearLeaderboardButton() {
   const [open, setOpen] = useState(false);
@@ -256,16 +449,15 @@ function ClearLeaderboardButton() {
       onSuccess: () => {
         toast({
           title: "Leaderboard Cleared",
-          description: "All scores and submissions have been reset. A new round has started.",
+          description: "All scores reset. New round started.",
         });
         setOpen(false);
-        // Reload to refresh all data
         setTimeout(() => window.location.reload(), 800);
       },
       onError: (err: any) => {
         toast({
           title: "Reset Failed",
-          description: err?.message || "Could not reset the leaderboard.",
+          description: err?.message || "Could not reset.",
           variant: "destructive",
         });
         setOpen(false);
@@ -278,7 +470,7 @@ function ClearLeaderboardButton() {
       <DialogTrigger asChild>
         <Button
           variant="outline"
-          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
+          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:border-destructive"
         >
           <RefreshCcw className="w-4 h-4 mr-2" /> Clear Leaderboard
         </Button>
@@ -286,32 +478,44 @@ function ClearLeaderboardButton() {
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-destructive" />
-            Clear Leaderboard
+            <AlertTriangle className="w-5 h-5 text-destructive" /> Clear
+            Leaderboard
           </DialogTitle>
           <DialogDescription>
-            This resets all scores and starts a fresh round. Participant names and device
-            bindings are preserved.
+            Resets all scores and starts a fresh round. Participant names and
+            device bindings are kept.
           </DialogDescription>
         </DialogHeader>
-
         <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 space-y-2">
-          <p className="text-sm font-semibold text-destructive">⚠ This cannot be undone</p>
+          <p className="text-sm font-semibold text-destructive">
+            ⚠ Cannot be undone
+          </p>
           <ul className="text-sm text-destructive/80 space-y-1 list-disc list-inside">
             <li>All submission scores cleared</li>
-            <li>Leaderboard rankings reset to zero</li>
+            <li>Leaderboard rankings reset</li>
             <li>Questions deactivated for this round</li>
           </ul>
         </div>
-
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
+          <Button
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={isPending}
+          >
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleClear} disabled={isPending}>
-            {isPending
-              ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Resetting...</>
-              : "Yes, Clear Everything"}
+          <Button
+            variant="destructive"
+            onClick={handleClear}
+            disabled={isPending}
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-2" /> Resetting...
+              </>
+            ) : (
+              "Yes, Clear Everything"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -323,13 +527,14 @@ function ClearLeaderboardButton() {
 
 export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(
-    () => !!localStorage.getItem("admin_auth")
+    () => !!localStorage.getItem("admin_auth"),
   );
   const { data: stats } = useAdminStats();
   const { data: results } = useAdminResults();
   const { data: questions } = useAdminQuestions();
 
-  if (!isAuthenticated) return <LoginForm onLogin={() => setIsAuthenticated(true)} />;
+  if (!isAuthenticated)
+    return <LoginForm onLogin={() => setIsAuthenticated(true)} />;
 
   return (
     <div className="min-h-screen bg-background p-4 lg:p-8 space-y-8 max-w-7xl mx-auto">
@@ -340,13 +545,21 @@ export default function Admin() {
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           <ClearLeaderboardButton />
-          <Button variant="outline" onClick={() => { window.location.href = "/api/admin/export"; }}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              window.location.href = "/api/admin/export";
+            }}
+          >
             <Download className="w-4 h-4 mr-2" /> Export
           </Button>
-          <Button variant="ghost" onClick={() => {
-            localStorage.removeItem("admin_auth");
-            setIsAuthenticated(false);
-          }}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              localStorage.removeItem("admin_auth");
+              setIsAuthenticated(false);
+            }}
+          >
             <LogOut className="w-4 h-4" />
           </Button>
         </div>
@@ -354,9 +567,21 @@ export default function Admin() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard title="Total Participants" value={stats?.totalParticipants ?? 0} icon={Users} />
-        <StatCard title="Submissions Today" value={stats?.totalSubmissionsToday ?? 0} icon={CheckCircle} />
-        <StatCard title="Active Questions" value={stats?.activeQuestions ?? 0} icon={HelpCircle} />
+        <StatCard
+          title="Total Participants"
+          value={stats?.totalParticipants ?? 0}
+          icon={Users}
+        />
+        <StatCard
+          title="Submissions Today"
+          value={stats?.totalSubmissionsToday ?? 0}
+          icon={CheckCircle}
+        />
+        <StatCard
+          title="Active Questions"
+          value={stats?.activeQuestions ?? 0}
+          icon={HelpCircle}
+        />
       </div>
 
       <Tabs defaultValue="leaderboard" className="space-y-4">
@@ -370,7 +595,9 @@ export default function Admin() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Live Rankings</CardTitle>
-              <span className="text-xs text-muted-foreground">{results?.length ?? 0} participants</span>
+              <span className="text-xs text-muted-foreground">
+                {results?.length ?? 0} participants
+              </span>
             </CardHeader>
             <CardContent>
               <Table>
@@ -387,16 +614,26 @@ export default function Admin() {
                   {results?.map((entry: any) => (
                     <TableRow key={entry.participantName}>
                       <TableCell className="font-medium">
-                        <span className={
-                          entry.rank === 1 ? "text-yellow-500 font-bold" :
-                          entry.rank === 2 ? "text-gray-400 font-bold" :
-                          entry.rank === 3 ? "text-amber-600 font-bold" : ""
-                        }>
+                        <span
+                          className={
+                            entry.rank === 1
+                              ? "text-yellow-500 font-bold"
+                              : entry.rank === 2
+                                ? "text-gray-400 font-bold"
+                                : entry.rank === 3
+                                  ? "text-amber-600 font-bold"
+                                  : ""
+                          }
+                        >
                           #{entry.rank}
                         </span>
                       </TableCell>
-                      <TableCell className="font-medium">{entry.participantName}</TableCell>
-                      <TableCell className="font-bold">{entry.totalScore}</TableCell>
+                      <TableCell className="font-medium">
+                        {entry.participantName}
+                      </TableCell>
+                      <TableCell className="font-bold">
+                        {entry.totalScore}
+                      </TableCell>
                       <TableCell>{entry.correctCount}</TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {entry.avgAnswerOrder?.toFixed(1) || "-"}
@@ -405,7 +642,10 @@ export default function Admin() {
                   ))}
                   {!results?.length && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                      <TableCell
+                        colSpan={5}
+                        className="text-center h-24 text-muted-foreground"
+                      >
                         No submissions yet today.
                       </TableCell>
                     </TableRow>
@@ -427,8 +667,9 @@ export default function Admin() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
+                    <TableHead>Time</TableHead>
                     <TableHead>Order</TableHead>
-                    <TableHead className="w-[380px]">Question</TableHead>
+                    <TableHead className="w-[300px]">Question</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -436,15 +677,29 @@ export default function Admin() {
                 <TableBody>
                   {questions?.map((q: any) => (
                     <TableRow key={q.id}>
-                      <TableCell className="text-sm text-muted-foreground">{q.quizDate}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">#{q.order}</TableCell>
-                      <TableCell className="truncate max-w-[380px] text-sm">{q.content}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        {q.quizDate}
+                      </TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          q.isActive
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                        }`}>
+                        <ScheduleBadge
+                          quizDate={q.quizDate}
+                          scheduledTime={q.scheduledTime}
+                        />
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        #{q.order}
+                      </TableCell>
+                      <TableCell className="truncate max-w-[300px] text-sm">
+                        {q.content}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            q.isActive
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                          }`}
+                        >
                           {q.isActive ? "Active" : "Inactive"}
                         </span>
                       </TableCell>
@@ -455,7 +710,10 @@ export default function Admin() {
                   ))}
                   {!questions?.length && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                      <TableCell
+                        colSpan={6}
+                        className="text-center h-24 text-muted-foreground"
+                      >
                         No questions yet. Add one above.
                       </TableCell>
                     </TableRow>
