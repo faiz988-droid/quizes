@@ -77,8 +77,8 @@ export function useDailyQuestion() {
       return api.getDailyQuestion.responses[200].parse(data);
     },
     retry: false,
-    // Re-check every 30s so the question appears as soon as admin activates it
-    refetchInterval: 30_000,
+    // Re-check every 5s for real-time updates
+    refetchInterval: 5_000,
   });
 }
 
