@@ -85,28 +85,35 @@ Preferred communication style: Simple, everyday language.
 - **Development**: Vite dev server with HMR proxied through Express, uses `@replit/vite-plugin-*` plugins
 - **Production**: Client built to `dist/public/`, server bundled to `dist/index.cjs` via esbuild, served as static files with SPA fallback
 
-## External Dependencies
+# SecureExam.OS - Technical Documentation
 
-### Required Services
-- **PostgreSQL Database** — Required. Connection via `DATABASE_URL` environment variable. Must be provisioned before the app can start.
+## Overview
+A mobile-first MCQ exam platform designed for high-stakes competition. Features strict anti-cheat lockdown, real-time question delivery, and deterministic competitive scoring.
 
-### Key NPM Packages
-- `express` v5 — HTTP server
-- `drizzle-orm` + `drizzle-kit` — Database ORM and migration tooling
-- `pg` — PostgreSQL client
-- `zod` — Runtime validation (shared between client and server)
-- `uuid` — Device ID generation
-- `xlsx` — Excel export for admin results
-- `date-fns` — Date formatting
-- `framer-motion` — Animations
-- `recharts` — Admin charts
-- `react-hook-form` — Form handling
-- `wouter` — Client routing
-- `@tanstack/react-query` — Server state management
-- `connect-pg-simple` — PostgreSQL session store
-- Various `@radix-ui/*` — UI primitives for shadcn components
+## Core Mechanics
 
-### Replit-Specific
-- `@replit/vite-plugin-runtime-error-modal` — Runtime error overlay
-- `@replit/vite-plugin-cartographer` — Dev tooling (dev only)
-- `@replit/vite-plugin-dev-banner` — Dev banner (dev only)
+### 1. Identity & Device Binding
+- **Security**: Participant names are permanently bound to a unique `deviceId` generated on the first visit.
+- **Enforcement**: One device per name, one name per device. Prevents multi-account or multi-device cheating.
+
+### 2. Scheduled Question Delivery
+- **Mechanism**: Admin sets a `scheduledTime` (e.g., "14:30") for each question.
+- **Real-time**: The client polls the server every 5 seconds. Questions appear automatically exactly when their scheduled time arrives, without page refresh.
+- **Reset Logic**: Global `resetId` allows admins to start new seasons/months while preserving historical submission records.
+
+### 3. Anti-Cheat Lockdown
+- **Monitoring**: Detects window blurring, tab switching, and fullscreen exit.
+- **Action**: Violations trigger an immediate "Auto-Submit" with zero/negative marks, recorded with a "Cheating" reason.
+
+### 4. Scoring Formula
+- **Base Marks**: `500 - ((Order - 1) * 10)`. Rewards the fastest correct responders.
+- **Bonus**: Up to 60% extra marks for the top 5 quickest correct answers.
+- **Recovery**: "Extra Marks" apply if the participant's previous question score was ≤ 0.
+- **Deductions**: `0` for 1st wrong attempt, `-5` for 2nd, etc. (Note: Current UI enforces single-submission for peak fairness).
+
+## Architecture
+
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS + Framer Motion.
+- **Backend**: Node.js (Express) + Drizzle ORM + PostgreSQL.
+- **Real-time**: 5-second polling interval for question state synchronization.
+- **Reporting**: Admin dashboard with Daily/Monthly results and Excel export.

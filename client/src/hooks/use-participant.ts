@@ -59,9 +59,10 @@ export function useDailyQuestion() {
     queryKey: [api.getDailyQuestion.path],
     queryFn: async () => {
       const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) return null; // Don't fetch if no token exists
 
       const res = await fetch(api.getDailyQuestion.path, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.status === 403) return null; // Not identified yet

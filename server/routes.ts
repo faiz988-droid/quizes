@@ -75,7 +75,10 @@ export async function registerRoutes(
   // Get Daily Question
   app.get(api.getDailyQuestion.path, async (req, res) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(403).json({ message: "Unauthorized" });
+    if (!authHeader) {
+      // Quiet 403 - expected if not yet identified
+      return res.status(403).json({ message: "Unauthorized" });
+    }
 
     const token = authHeader.split(" ")[1];
     if (!token) return res.status(403).json({ message: "Unauthorized" });
@@ -84,8 +87,9 @@ export async function registerRoutes(
     try {
       const decoded = Buffer.from(token, "base64").toString().split(":");
       participantId = parseInt(decoded[0]);
-      if (isNaN(participantId)) throw new Error("Invalid token");
-    } catch {
+      if (isNaN(participantId)) throw new Error("Invalid token format");
+    } catch (e) {
+      console.error("[getDailyQuestion] Token parsing error:", e);
       return res.status(403).json({ message: "Invalid token" });
     }
 
