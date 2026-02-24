@@ -161,11 +161,11 @@ export class DatabaseStorage implements IStorage {
       return undefined;
     }
 
-    // Filter by scheduled time in JS — avoids any SQL text-comparison edge cases
-    // "HH:mm" strings compare correctly as plain strings (zero-padded 24h)
+    // Filter by scheduled time in JS
     const eligible = allToday.filter((q) => {
-      if (!q.scheduledTime) return true; // NULL = always available
-      return q.scheduledTime <= currentTime; // e.g. "09:00" <= "14:35"
+      // If scheduledTime is NULL, empty, or whitespace, it's available immediately
+      if (!q.scheduledTime || q.scheduledTime.trim() === "") return true;
+      return q.scheduledTime <= currentTime;
     });
 
     console.log(
@@ -247,10 +247,25 @@ export class DatabaseStorage implements IStorage {
 
   async createSubmission(submission: Partial<Submission>): Promise<Submission> {
     const resetId = await this.getCurrentResetId();
-    // @ts-ignore
     const [s] = await db
       .insert(submissions)
-      .values({ ...submission, resetId })
+      .values({ 
+        participantId: submission.participantId!,
+        questionId: submission.questionId!,
+        answerIndex: submission.answerIndex,
+        status: submission.status!,
+        answerOrder: submission.answerOrder!,
+        wrongAttemptOrder: submission.wrongAttemptOrder ?? 0,
+        baseMarks: submission.baseMarks!,
+        deductionMarks: submission.deductionMarks!,
+        bonusPercentage: submission.bonusPercentage!,
+        extraApplied: submission.extraApplied ?? false,
+        finalScore: submission.finalScore!,
+        deviceId: submission.deviceId!,
+        isAutoSubmitted: submission.isAutoSubmitted ?? false,
+        autoSubmitReason: submission.autoSubmitReason,
+        resetId 
+      })
       .returning();
     return s;
   }

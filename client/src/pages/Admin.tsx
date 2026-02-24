@@ -275,13 +275,10 @@ function CreateQuestionDialog() {
               </Label>
               <Input
                 type="time"
-                {...register("scheduledTime", { required: true })}
+                {...register("scheduledTime")}
               />
-              {errors.scheduledTime && (
-                <p className="text-xs text-destructive">Required</p>
-              )}
               <p className="text-xs text-muted-foreground">
-                24h · server local time
+                24h · server local time (Leave empty for immediate)
               </p>
             </div>
           </div>
