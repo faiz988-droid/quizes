@@ -18,17 +18,12 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { format } from "date-fns";
 
 export interface IStorage {
-  // Settings
   getCurrentResetId(): Promise<number>;
   performReset(): Promise<number>;
-
-  // Participants
   getParticipantByDeviceId(deviceId: string): Promise<Participant | undefined>;
   getParticipantByName(name: string): Promise<Participant | undefined>;
   createParticipant(participant: InsertParticipant): Promise<Participant>;
   updateParticipantActivity(id: number): Promise<void>;
-
-  // Questions
   getDailyQuestion(date: string): Promise<Question | undefined>;
   createQuestion(question: InsertQuestion): Promise<Question>;
   getQuestion(id: number): Promise<Question | undefined>;
@@ -39,8 +34,6 @@ export interface IStorage {
   ): Promise<Question>;
   deleteQuestion(id: number): Promise<void>;
   deleteSubmissionsByQuestion(questionId: number): Promise<void>;
-
-  // Submissions & Scoring
   createSubmission(submission: Partial<Submission>): Promise<Submission>;
   getSubmission(
     participantId: number,
@@ -55,8 +48,6 @@ export interface IStorage {
     participantId: number,
     currentQuestionId: number,
   ): Promise<number>;
-
-  // Admin
   getAdmin(username: string): Promise<Admin | undefined>;
   getLeaderboard(
     type: "daily" | "monthly",
@@ -136,11 +127,8 @@ export class DatabaseStorage implements IStorage {
   async getDailyQuestion(date: string): Promise<Question | undefined> {
     const resetId = await this.getCurrentResetId();
 
-    // Format current time as "HH:mm" — zero-padded 24h strings compare
-    // correctly with plain string comparison e.g. "09:00" < "14:30"
-    const currentTime = format(new Date(), "HH:mm");
-
-    const [q] = await db
+    // Get ALL active questions for today in this reset so we can debug
+    const allToday = await db
       .select()
       .from(questions)
       .where(
@@ -148,17 +136,67 @@ export class DatabaseStorage implements IStorage {
           eq(questions.quizDate, date),
           eq(questions.isActive, true),
           eq(questions.resetId, resetId),
-          // NULL scheduledTime = always available.
-          // Otherwise only serve once current time >= scheduled time.
-          sql`(${questions.scheduledTime} IS NULL OR ${questions.scheduledTime} <= ${currentTime})`,
         ),
       )
-      // Among all eligible slots, serve the one whose scheduled time is latest
-      // (most recently opened). Falls back to order if times are equal.
-      .orderBy(desc(questions.scheduledTime), desc(questions.order))
-      .limit(1);
+      .orderBy(desc(questions.order));
 
-    return q;
+    // Log every time to help diagnose visibility issues
+    const currentTime = format(new Date(), "HH:mm");
+    console.log(
+      `[getDailyQuestion] date=${date} resetId=${resetId} currentTime=${currentTime}`,
+    );
+    console.log(
+      `[getDailyQuestion] found ${allToday.length} active question(s) for today:`,
+    );
+    allToday.forEach((q) => {
+      console.log(
+        `  id=${q.id} scheduledTime=${q.scheduledTime ?? "NULL(immediate)"} content="${q.content.slice(0, 40)}"`,
+      );
+    });
+
+    if (allToday.length === 0) {
+      console.log(
+        "[getDailyQuestion] → no questions found. Check: correct date? correct resetId?",
+      );
+      return undefined;
+    }
+
+    // Filter by scheduled time in JS — avoids any SQL text-comparison edge cases
+    // "HH:mm" strings compare correctly as plain strings (zero-padded 24h)
+    const eligible = allToday.filter((q) => {
+      if (!q.scheduledTime) return true; // NULL = always available
+      return q.scheduledTime <= currentTime; // e.g. "09:00" <= "14:35"
+    });
+
+    console.log(
+      `[getDailyQuestion] ${eligible.length} eligible after time filter (currentTime=${currentTime})`,
+    );
+    if (eligible.length === 0) {
+      const nextSlot = allToday
+        .filter((q) => q.scheduledTime)
+        .sort((a, b) => (a.scheduledTime! > b.scheduledTime! ? 1 : -1))[0];
+      if (nextSlot) {
+        console.log(
+          `[getDailyQuestion] Next question opens at ${nextSlot.scheduledTime}`,
+        );
+      }
+    }
+
+    if (eligible.length === 0) return undefined;
+
+    // Among eligible, serve the one with the latest scheduled time (most recent slot)
+    eligible.sort((a, b) => {
+      const ta = a.scheduledTime ?? "00:00";
+      const tb = b.scheduledTime ?? "00:00";
+      if (tb !== ta) return tb > ta ? 1 : -1;
+      return b.order - a.order;
+    });
+
+    const chosen = eligible[0];
+    console.log(
+      `[getDailyQuestion] → serving id=${chosen.id} scheduledTime=${chosen.scheduledTime}`,
+    );
+    return chosen;
   }
 
   async createQuestion(question: InsertQuestion): Promise<Question> {
@@ -167,6 +205,9 @@ export class DatabaseStorage implements IStorage {
       .insert(questions)
       .values({ ...question, resetId })
       .returning();
+    console.log(
+      `[createQuestion] created id=${q.id} quizDate=${q.quizDate} scheduledTime=${q.scheduledTime} resetId=${q.resetId}`,
+    );
     return q;
   }
 
@@ -198,7 +239,6 @@ export class DatabaseStorage implements IStorage {
     await db.delete(questions).where(eq(questions.id, id));
   }
 
-  // Must be called BEFORE deleteQuestion — FK constraint blocks deletion otherwise
   async deleteSubmissionsByQuestion(questionId: number): Promise<void> {
     await db.delete(submissions).where(eq(submissions.questionId, questionId));
   }
@@ -207,7 +247,7 @@ export class DatabaseStorage implements IStorage {
 
   async createSubmission(submission: Partial<Submission>): Promise<Submission> {
     const resetId = await this.getCurrentResetId();
-    // @ts-ignore — partial spread intentional; DB defaults fill remaining cols
+    // @ts-ignore
     const [s] = await db
       .insert(submissions)
       .values({ ...submission, resetId })
@@ -243,7 +283,7 @@ export class DatabaseStorage implements IStorage {
     _participantId: number,
     _questionId: number,
   ): Promise<number> {
-    return 1; // single-attempt model
+    return 1;
   }
 
   async getPreviousQuestionScore(
@@ -256,8 +296,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(submissions.participantId, participantId))
       .orderBy(desc(submissions.submissionTimestamp))
       .limit(1);
-
-    if (!prev) return 100; // positive sentinel → eligible for bonus
+    if (!prev) return 100;
     return Number(prev.finalScore);
   }
 
@@ -277,7 +316,6 @@ export class DatabaseStorage implements IStorage {
   ): Promise<LeaderboardEntry[]> {
     const resetId = await this.getCurrentResetId();
     const conditions: any[] = [eq(submissions.resetId, resetId)];
-
     if (type === "daily" && date) {
       conditions.push(eq(questions.quizDate, date));
     }
@@ -314,7 +352,6 @@ export class DatabaseStorage implements IStorage {
 
   async getAllSubmissions(date?: string): Promise<any[]> {
     const resetId = await this.getCurrentResetId();
-
     let query = db
       .select({
         submissionId: submissions.id,
@@ -339,7 +376,6 @@ export class DatabaseStorage implements IStorage {
     if (date) {
       query = query.where(eq(questions.quizDate, date));
     }
-
     return await query;
   }
 }
