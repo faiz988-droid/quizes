@@ -161,12 +161,25 @@ export class DatabaseStorage implements IStorage {
       return undefined;
     }
 
+    console.log(
+      `[getDailyQuestion] date=${date} resetId=${resetId} currentTime=${currentTime}`,
+    );
+
     // Filter by scheduled time in JS
     const eligible = allToday.filter((q) => {
-      // If scheduledTime is NULL, empty, or whitespace, it's available immediately
-      if (!q.scheduledTime || q.scheduledTime.trim() === "") return true;
+      // If scheduledTime is NULL, empty, whitespace, or "00:00", it's available immediately
+      const isImmediate = !q.scheduledTime || q.scheduledTime.trim() === "" || q.scheduledTime === "00:00";
+      
+      if (isImmediate) return true;
+      
+      // Compare HH:mm strings
       return q.scheduledTime <= currentTime;
     });
+
+    console.log(
+      `[getDailyQuestion] found ${allToday.length} active question(s) for today:`,
+    );
+    allToday.forEach(q => console.log(`  id=${q.id} scheduledTime=${q.scheduledTime} content="${q.content.substring(0, 20)}..."`));
 
     console.log(
       `[getDailyQuestion] ${eligible.length} eligible after time filter (currentTime=${currentTime})`,

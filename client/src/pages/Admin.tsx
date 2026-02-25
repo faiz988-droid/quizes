@@ -129,30 +129,38 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
 
 // ─── Schedule Badge ───────────────────────────────────────────────────────────
 
-function ScheduleBadge({
-  quizDate,
-  scheduledTime,
-}: {
+type ScheduleBadgeProps = {
   quizDate: string;
   scheduledTime?: string | null;
-}) {
+};
+
+function ScheduleBadge({ quizDate, scheduledTime }: ScheduleBadgeProps) {
+  const baseClasses =
+    "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap";
+
+  const immediateClasses =
+    "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+
+  const pendingClasses =
+    "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+
   if (!scheduledTime) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-        <Clock className="w-3 h-3" /> Immediate
+      <span className={`${baseClasses} ${immediateClasses}`}>
+        <Clock className="w-3 h-3" />
+        Immediate
       </span>
     );
   }
 
   const scheduledAt = new Date(`${quizDate}T${scheduledTime}`);
-  const isPending = scheduledAt > new Date();
+  const now = new Date();
+  const isPending = !isNaN(scheduledAt.getTime()) && scheduledAt > now;
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
-        isPending
-          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-          : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+      className={`${baseClasses} ${
+        isPending ? pendingClasses : immediateClasses
       }`}
     >
       <Clock className="w-3 h-3" />
@@ -161,7 +169,6 @@ function ScheduleBadge({
     </span>
   );
 }
-
 // ─── Create Question Dialog ───────────────────────────────────────────────────
 
 function CreateQuestionDialog() {
@@ -216,7 +223,7 @@ function CreateQuestionDialog() {
         correctAnswerIndex: correctIndex,
         order: parseInt(data.order) || 1,
         quizDate: data.quizDate,
-        scheduledTime: data.scheduledTime || null,
+        scheduledTime: data.scheduledTime || "",
         isActive: true,
       },
       {
@@ -273,10 +280,7 @@ function CreateQuestionDialog() {
                 <Clock className="w-3.5 h-3.5 text-muted-foreground" />{" "}
                 Scheduled Time
               </Label>
-              <Input
-                type="time"
-                {...register("scheduledTime")}
-              />
+              <Input type="time" {...register("scheduledTime")} />
               <p className="text-xs text-muted-foreground">
                 24h · server local time (Leave empty for immediate)
               </p>

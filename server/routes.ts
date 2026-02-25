@@ -300,7 +300,11 @@ export async function registerRoutes(
 
   app.post(api.adminQuestions.create.path, async (req, res) => {
     try {
-      const input = api.adminQuestions.create.input.parse(req.body);
+      const body = {
+        ...req.body,
+        scheduledTime: req.body.scheduledTime || "",
+      };
+      const input = api.adminQuestions.create.input.parse(body);
       if (!Array.isArray(input.options) || input.options.length !== 4) {
         return res
           .status(400)
@@ -319,7 +323,11 @@ export async function registerRoutes(
   app.patch(api.adminQuestions.update.path, async (req, res) => {
     try {
       const id = parseInt(req.params.id as string);
-      const input = api.adminQuestions.update.input.parse(req.body);
+      const body = {
+        ...req.body,
+        scheduledTime: req.body.scheduledTime === undefined ? undefined : (req.body.scheduledTime || ""),
+      };
+      const input = api.adminQuestions.update.input.parse(body);
       const q = await storage.updateQuestion(id, input);
       res.json(q);
     } catch (err) {
