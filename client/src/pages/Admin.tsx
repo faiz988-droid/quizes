@@ -4,6 +4,7 @@ import {
   useAdminStats,
   useAdminResults,
   useCreateQuestion,
+  useUpdateQuestion,
   useAdminQuestions,
   useDeleteQuestion,
   useAdminReset,

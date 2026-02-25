@@ -93,6 +93,31 @@ export function useDeleteQuestion() {
   });
 }
 
+export function useUpdateQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertQuestion> }) => {
+      const url = buildUrl(api.adminQuestions.update.path, { id });
+      const res = await fetch(url, {
+        method: api.adminQuestions.update.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to update question");
+      }
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [api.adminQuestions.list.path],
+      });
+      queryClient.invalidateQueries({ queryKey: [api.adminStats.path] });
+    },
+  });
+}
+
 export function useAdminLogin() {
   return useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
