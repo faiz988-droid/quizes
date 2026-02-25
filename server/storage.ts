@@ -127,8 +127,7 @@ export class DatabaseStorage implements IStorage {
   async getDailyQuestion(date: string): Promise<Question | undefined> {
     const resetId = await this.getCurrentResetId();
 
-    // Get ALL active questions for today in this reset so we can debug
-    const allToday = await db
+    const allActive = await db
       .select()
       .from(questions)
       .where(
@@ -140,76 +139,8 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(questions.order));
 
-    // Log every time to help diagnose visibility issues
-    const currentTime = format(new Date(), "HH:mm");
-    console.log(
-      `[getDailyQuestion] date=${date} resetId=${resetId} currentTime=${currentTime}`,
-    );
-    console.log(
-      `[getDailyQuestion] found ${allToday.length} active question(s) for today:`,
-    );
-    allToday.forEach((q) => {
-      console.log(
-        `  id=${q.id} scheduledTime=${q.scheduledTime ?? "NULL(immediate)"} content="${q.content.slice(0, 40)}"`,
-      );
-    });
-
-    if (allToday.length === 0) {
-      console.log(
-        "[getDailyQuestion] → no questions found. Check: correct date? correct resetId?",
-      );
-      return undefined;
-    }
-
-    console.log(
-      `[getDailyQuestion] date=${date} resetId=${resetId} currentTime=${currentTime}`,
-    );
-
-    // Filter by scheduled time in JS
-    const eligible = allToday.filter((q) => {
-      // If scheduledTime is NULL, empty, whitespace, or "00:00", it's available immediately
-      const isImmediate = !q.scheduledTime || q.scheduledTime.trim() === "" || q.scheduledTime === "00:00";
-      
-      if (isImmediate) return true;
-      
-      // Compare HH:mm strings
-      return q.scheduledTime <= currentTime;
-    });
-
-    console.log(
-      `[getDailyQuestion] found ${allToday.length} active question(s) for today:`,
-    );
-    allToday.forEach(q => console.log(`  id=${q.id} scheduledTime=${q.scheduledTime} content="${q.content.substring(0, 20)}..."`));
-
-    console.log(
-      `[getDailyQuestion] ${eligible.length} eligible after time filter (currentTime=${currentTime})`,
-    );
-    if (eligible.length === 0) {
-      const nextSlot = allToday
-        .filter((q) => q.scheduledTime)
-        .sort((a, b) => (a.scheduledTime! > b.scheduledTime! ? 1 : -1))[0];
-      if (nextSlot) {
-        console.log(
-          `[getDailyQuestion] Next question opens at ${nextSlot.scheduledTime}`,
-        );
-      }
-    }
-
-    if (eligible.length === 0) return undefined;
-
-    // Among eligible, serve the one with the latest scheduled time (most recent slot)
-    eligible.sort((a, b) => {
-      const ta = a.scheduledTime ?? "00:00";
-      const tb = b.scheduledTime ?? "00:00";
-      if (tb !== ta) return tb > ta ? 1 : -1;
-      return b.order - a.order;
-    });
-
-    const chosen = eligible[0];
-    console.log(
-      `[getDailyQuestion] → serving id=${chosen.id} scheduledTime=${chosen.scheduledTime}`,
-    );
-    return chosen;
+    if (allActive.length === 0) return undefined;
+    return allActive[0];
   }
 
   async createQuestion(question: InsertQuestion): Promise<Question> {
@@ -218,14 +149,6 @@ export class DatabaseStorage implements IStorage {
       .insert(questions)
       .values({ ...question, resetId })
       .returning();
-    console.log(
-      `[createQuestion] created id=${q.id} quizDate=${q.quizDate} scheduledTime=${q.scheduledTime} resetId=${q.resetId}`,
-    );
-    return q;
-  }
-
-  async getQuestion(id: number): Promise<Question | undefined> {
-    const [q] = await db.select().from(questions).where(eq(questions.id, id));
     return q;
   }
 
@@ -233,7 +156,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(questions)
-      .orderBy(desc(questions.quizDate), desc(questions.scheduledTime));
+      .orderBy(desc(questions.quizDate), desc(questions.order));
   }
 
   async updateQuestion(

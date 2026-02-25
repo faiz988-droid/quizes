@@ -31,7 +31,7 @@ export const admins = pgTable("admins", {
   password: text("password").notNull(),
 });
 
-// Questions: Daily questions with optional scheduled time
+// Questions: Daily questions
 export const questions = pgTable("questions", {
   id: serial("id").primaryKey(),
   content: text("content").notNull(),
@@ -39,11 +39,8 @@ export const questions = pgTable("questions", {
   correctAnswerIndex: integer("correct_answer_index").notNull(),
   quizDate: text("quiz_date").notNull(),
   order: integer("order").default(1).notNull(),
-  isActive: boolean("is_active").default(true).notNull(),
+  isActive: boolean("is_active").default(false).notNull(),
   resetId: integer("reset_id").default(0).notNull(),
-  // "HH:mm" in 24h format e.g. "09:00", "14:30"
-  // NULL means the question is available immediately when isActive = true
-  scheduledTime: text("scheduled_time"),
 });
 
 // Submissions

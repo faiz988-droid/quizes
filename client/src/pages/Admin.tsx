@@ -42,7 +42,8 @@ import {
   HelpCircle,
   RefreshCcw,
   AlertTriangle,
-  Clock,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
@@ -127,48 +128,43 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-// ─── Schedule Badge ───────────────────────────────────────────────────────────
+// ─── Question Status Toggle ──────────────────────────────────────────────────
 
-type ScheduleBadgeProps = {
-  quizDate: string;
-  scheduledTime?: string | null;
-};
+function QuestionStatusToggle({ id, isActive }: { id: number; isActive: boolean }) {
+  const { mutate, isPending } = useUpdateQuestion();
+  const { toast } = useToast();
 
-function ScheduleBadge({ quizDate, scheduledTime }: ScheduleBadgeProps) {
-  const baseClasses =
-    "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap";
-
-  const immediateClasses =
-    "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
-
-  const pendingClasses =
-    "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
-
-  if (!scheduledTime) {
-    return (
-      <span className={`${baseClasses} ${immediateClasses}`}>
-        <Clock className="w-3 h-3" />
-        Immediate
-      </span>
+  const handleToggle = () => {
+    mutate(
+      { id, data: { isActive: !isActive } },
+      {
+        onSuccess: () => {
+          toast({
+            title: isActive ? "Question Deactivated" : "Question Activated",
+            description: `Question is now ${isActive ? "hidden from" : "visible to"} participants.`,
+          });
+        },
+      }
     );
-  }
-
-  const scheduledAt = new Date(`${quizDate}T${scheduledTime}`);
-  const now = new Date();
-  const isPending = !isNaN(scheduledAt.getTime()) && scheduledAt > now;
+  };
 
   return (
-    <span
-      className={`${baseClasses} ${
-        isPending ? pendingClasses : immediateClasses
-      }`}
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleToggle}
+      disabled={isPending}
+      title={isActive ? "Deactivate" : "Activate"}
     >
-      <Clock className="w-3 h-3" />
-      {scheduledTime}
-      {isPending && " ⏳"}
-    </span>
+      {isActive ? (
+        <ToggleRight className="w-5 h-5 text-green-500" />
+      ) : (
+        <ToggleLeft className="w-5 h-5 text-muted-foreground" />
+      )}
+    </Button>
   );
 }
+
 // ─── Create Question Dialog ───────────────────────────────────────────────────
 
 function CreateQuestionDialog() {
@@ -187,7 +183,6 @@ function CreateQuestionDialog() {
       correctAnswerIndex: "0",
       order: "1",
       quizDate: format(new Date(), "yyyy-MM-dd"),
-      scheduledTime: format(new Date(), "HH:mm"), // default to current time
     },
   });
 
@@ -223,14 +218,13 @@ function CreateQuestionDialog() {
         correctAnswerIndex: correctIndex,
         order: parseInt(data.order) || 1,
         quizDate: data.quizDate,
-        scheduledTime: data.scheduledTime || "",
-        isActive: true,
+        isActive: false, // Default to inactive so admin can check before making live
       },
       {
         onSuccess: () => {
           toast({
-            title: "Question Scheduled",
-            description: `Active on ${data.quizDate} at ${data.scheduledTime}`,
+            title: "Question Added",
+            description: "Question created as inactive. Use the toggle to make it live.",
           });
           setOpen(false);
           reset();
@@ -255,15 +249,13 @@ function CreateQuestionDialog() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Schedule a Question</DialogTitle>
+          <DialogTitle>Add Daily Question</DialogTitle>
           <DialogDescription>
-            The question will become visible to participants only on the chosen
-            date and after the scheduled time.
+            The question will be added to the question bank. You must manually activate it to make it visible to participants.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-          {/* Date + Time side by side */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Quiz Date</Label>
@@ -276,18 +268,14 @@ function CreateQuestionDialog() {
               )}
             </div>
             <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-muted-foreground" />{" "}
-                Scheduled Time
-              </Label>
-              <Input type="time" {...register("scheduledTime")} />
+              <Label>Day Order</Label>
+              <Input type="number" {...register("order")} min={1} />
               <p className="text-xs text-muted-foreground">
-                24h · server local time (Leave empty for immediate)
+                Question sequence #
               </p>
             </div>
           </div>
 
-          {/* Question Content */}
           <div className="space-y-2">
             <Label>Question Content</Label>
             <Textarea
@@ -300,7 +288,6 @@ function CreateQuestionDialog() {
             )}
           </div>
 
-          {/* Options */}
           <div className="space-y-2">
             <Label>
               Options{" "}
@@ -318,36 +305,27 @@ function CreateQuestionDialog() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                Correct Index{" "}
-                <span className="text-muted-foreground text-xs">(0–3)</span>
-              </Label>
-              <Input
-                type="number"
-                {...register("correctAnswerIndex")}
-                min={0}
-                max={3}
-              />
-              <p className="text-xs text-muted-foreground">0 = first option</p>
-            </div>
-            <div className="space-y-2">
-              <Label>Day Order</Label>
-              <Input type="number" {...register("order")} min={1} />
-              <p className="text-xs text-muted-foreground">
-                Question sequence #
-              </p>
-            </div>
+          <div className="space-y-2">
+            <Label>
+              Correct Index{" "}
+              <span className="text-muted-foreground text-xs">(0–3)</span>
+            </Label>
+            <Input
+              type="number"
+              {...register("correctAnswerIndex")}
+              min={0}
+              max={3}
+            />
+            <p className="text-xs text-muted-foreground">0 = first option</p>
           </div>
 
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending ? (
               <>
-                <Loader2 className="animate-spin mr-2 w-4 h-4" /> Scheduling...
+                <Loader2 className="animate-spin mr-2 w-4 h-4" /> Adding...
               </>
             ) : (
-              "Schedule Question"
+              "Add Question"
             )}
           </Button>
         </form>
@@ -668,7 +646,6 @@ export default function Admin() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Time</TableHead>
                     <TableHead>Order</TableHead>
                     <TableHead className="w-[300px]">Question</TableHead>
                     <TableHead>Status</TableHead>
@@ -680,12 +657,6 @@ export default function Admin() {
                     <TableRow key={q.id}>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                         {q.quizDate}
-                      </TableCell>
-                      <TableCell>
-                        <ScheduleBadge
-                          quizDate={q.quizDate}
-                          scheduledTime={q.scheduledTime}
-                        />
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         #{q.order}
@@ -704,7 +675,8 @@ export default function Admin() {
                           {q.isActive ? "Active" : "Inactive"}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right flex items-center justify-end gap-1">
+                        <QuestionStatusToggle id={q.id} isActive={q.isActive} />
                         <DeleteQuestionButton id={q.id} content={q.content} />
                       </TableCell>
                     </TableRow>
