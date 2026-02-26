@@ -124,7 +124,7 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Questions ───────────────────────────────────────────────────────────────
 
-  async getDailyQuestion(date: string): Promise<Question | undefined> {
+  async getDailyQuestion(_date: string): Promise<Question | undefined> {
     const resetId = await this.getCurrentResetId();
 
     const allActive = await db
@@ -132,12 +132,11 @@ export class DatabaseStorage implements IStorage {
       .from(questions)
       .where(
         and(
-          eq(questions.quizDate, date),
           eq(questions.isActive, true),
           eq(questions.resetId, resetId),
         ),
       )
-      .orderBy(desc(questions.order));
+      .orderBy(desc(questions.quizDate), desc(questions.order));
 
     if (allActive.length === 0) return undefined;
     return allActive[0];
@@ -149,6 +148,11 @@ export class DatabaseStorage implements IStorage {
       .insert(questions)
       .values({ ...question, resetId })
       .returning();
+    return q;
+  }
+
+  async getQuestion(id: number): Promise<Question | undefined> {
+    const [q] = await db.select().from(questions).where(eq(questions.id, id));
     return q;
   }
 
@@ -185,7 +189,7 @@ export class DatabaseStorage implements IStorage {
     const resetId = await this.getCurrentResetId();
     const [s] = await db
       .insert(submissions)
-      .values({ 
+      .values({
         participantId: submission.participantId!,
         questionId: submission.questionId!,
         answerIndex: submission.answerIndex,
@@ -200,7 +204,7 @@ export class DatabaseStorage implements IStorage {
         deviceId: submission.deviceId!,
         isAutoSubmitted: submission.isAutoSubmitted ?? false,
         autoSubmitReason: submission.autoSubmitReason,
-        resetId 
+        resetId,
       })
       .returning();
     return s;
@@ -303,7 +307,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllSubmissions(date?: string): Promise<any[]> {
     const resetId = await this.getCurrentResetId();
-    
+
     const query = db
       .select({
         submissionId: submissions.id,
@@ -325,10 +329,7 @@ export class DatabaseStorage implements IStorage {
 
     if (date) {
       return await query.where(
-        and(
-          eq(submissions.resetId, resetId),
-          eq(questions.quizDate, date)
-        )
+        and(eq(submissions.resetId, resetId), eq(questions.quizDate, date)),
       );
     }
 

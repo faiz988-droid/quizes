@@ -27,22 +27,18 @@ export async function registerRoutes(
 
       if (participant) {
         if (participant.deviceId !== input.deviceId) {
-          return res
-            .status(403)
-            .json({
-              message: "This name is already registered to another device.",
-            });
+          return res.status(403).json({
+            message: "This name is already registered to another device.",
+          });
         }
       } else {
         const existingDevice = await storage.getParticipantByDeviceId(
           input.deviceId,
         );
         if (existingDevice) {
-          return res
-            .status(403)
-            .json({
-              message: `This device is already registered as ${existingDevice.name}.`,
-            });
+          return res.status(403).json({
+            message: `This device is already registered as ${existingDevice.name}.`,
+          });
         }
         participant = await storage.createParticipant({
           name: input.name,
@@ -142,7 +138,10 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Already submitted" });
     }
 
-    const question = await storage.getQuestion(input.questionId);
+    const [question] = await db
+      .select()
+      .from(questions)
+      .where(eq(questions.id, input.questionId));
     if (!question)
       return res.status(404).json({ message: "Question not found" });
 
@@ -277,7 +276,6 @@ export async function registerRoutes(
         .from(questions)
         .where(
           and(
-            eq(questions.quizDate, today),
             eq(questions.isActive, true),
             eq(questions.resetId, resetId),
           ),
