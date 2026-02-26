@@ -196,7 +196,15 @@ function QuestionPanel({
         answerIndex: selectedOption,
         deviceId,
       },
-      { onSuccess: () => setSubmitted(true) },
+      { 
+        onSuccess: () => setSubmitted(true),
+        onError: (err: any) => {
+          if (err.message.includes("re-identify")) {
+            // Force reload to trigger identity check
+            window.location.reload();
+          }
+        }
+      },
     );
   };
 
@@ -293,18 +301,23 @@ export default function Home() {
 
   const apiError = error as ApiError | undefined;
 
-  if ((data === null && apiError?.status === 403) || apiError?.status === 403) {
-    return (
-      <ExamLayout isConnected>
-        <IdentificationForm
-          deviceId={deviceId}
-          onSuccess={() => window.location.reload()}
-        />
-      </ExamLayout>
-    );
-  }
-
+  // If no data and we got a 403, or if the hook returned null (which it does on 403 now), show form
+  // We check for !data && !isLoading. If token was cleared, data will be null.
   if (!data) {
+    // We need to distinguish between "need identity" and "no question available"
+    const hasToken = !!localStorage.getItem("exam_token");
+    
+    if (!hasToken) {
+      return (
+        <ExamLayout isConnected>
+          <IdentificationForm
+            deviceId={deviceId}
+            onSuccess={() => window.location.reload()}
+          />
+        </ExamLayout>
+      );
+    }
+
     return (
       <ExamLayout isConnected>
         <div className="flex justify-center items-center flex-1">

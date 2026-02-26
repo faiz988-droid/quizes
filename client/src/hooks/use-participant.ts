@@ -65,7 +65,12 @@ export function useDailyQuestion() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (res.status === 403) return null; // Not identified yet
+      if (res.status === 403) {
+        // Clear token and device ID if invalid session detected
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(DEVICE_ID_KEY);
+        return null;
+      }
 
       if (!res.ok) throw new Error("Failed to fetch question");
 
@@ -121,6 +126,11 @@ export function useSubmitAnswer() {
       });
     },
     onError: (error: Error) => {
+      // If unauthorized or invalid session, clear everything to force a clean start
+      if (error.message.includes("expired") || error.message.includes("Unauthorized") || error.message.includes("Invalid token")) {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(DEVICE_ID_KEY); // Also clear deviceId to ensure a fresh UUID is generated if the DB was wiped
+      }
       toast({
         title: "Submission Error",
         description: error.message,

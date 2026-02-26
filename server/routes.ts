@@ -101,6 +101,7 @@ export async function registerRoutes(
       question.id,
     );
     if (existingSubmission) {
+      console.log(`[getDailyQuestion] Already submitted: participantId=${participantId}, questionId=${question.id}`);
       return res.json(null);
     }
 
@@ -124,9 +125,14 @@ export async function registerRoutes(
     try {
       const decoded = Buffer.from(token, "base64").toString().split(":");
       participantId = parseInt(decoded[0]);
-      deviceId = decoded[1];
+      // The deviceId is the rest of the string after the first colon
+      deviceId = decoded.slice(1).join(":"); 
+      
+      console.log(`[submitAnswer] Token check: participantId=${participantId}, deviceId=${deviceId}`);
+      
       if (isNaN(participantId) || !deviceId) throw new Error("Invalid token");
-    } catch {
+    } catch (e) {
+      console.error("[submitAnswer] Token parsing error:", e);
       return res.status(403).json({ message: "Invalid token" });
     }
 
@@ -134,8 +140,15 @@ export async function registerRoutes(
 
     // Verify participant exists and matches deviceId
     const participant = await storage.getParticipantByDeviceId(deviceId);
-    if (!participant || participant.id !== participantId) {
-      return res.status(403).json({ message: "Session expired or invalid. Please re-identify." });
+    
+    if (!participant) {
+      console.log(`[submitAnswer] Device not found in DB: deviceId=${deviceId}`);
+      return res.status(403).json({ message: "Device not recognized. Please refresh and re-identify." });
+    }
+
+    if (participant.id !== participantId) {
+      console.log(`[submitAnswer] ID mismatch: DB_id=${participant.id}, token_id=${participantId}`);
+      return res.status(403).json({ message: "Session mismatch. Please refresh and re-identify." });
     }
 
     const existing = await storage.getSubmission(
