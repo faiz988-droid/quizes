@@ -293,7 +293,7 @@ export default function Home() {
 
   const apiError = error as ApiError | undefined;
 
-  if (data === null && apiError?.status === 403) {
+  if ((data === null && apiError?.status === 403) || apiError?.status === 403) {
     return (
       <ExamLayout isConnected>
         <IdentificationForm

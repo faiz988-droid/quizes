@@ -120,15 +120,23 @@ export async function registerRoutes(
 
     const token = authHeader.split(" ")[1];
     let participantId: number;
+    let deviceId: string;
     try {
       const decoded = Buffer.from(token, "base64").toString().split(":");
       participantId = parseInt(decoded[0]);
-      if (isNaN(participantId)) throw new Error("Invalid token");
+      deviceId = decoded[1];
+      if (isNaN(participantId) || !deviceId) throw new Error("Invalid token");
     } catch {
       return res.status(403).json({ message: "Invalid token" });
     }
 
     const input = api.submitAnswer.input.parse(req.body);
+
+    // Verify participant exists and matches deviceId
+    const participant = await storage.getParticipantByDeviceId(deviceId);
+    if (!participant || participant.id !== participantId) {
+      return res.status(403).json({ message: "Session expired or invalid. Please re-identify." });
+    }
 
     const existing = await storage.getSubmission(
       participantId,
